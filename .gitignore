@@ -1,0 +1,7 @@
+uploads/*
+!uploads/.gitkeep
+!uploads/.htaccess
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
