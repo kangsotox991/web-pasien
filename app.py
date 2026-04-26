@@ -419,18 +419,18 @@ class ExcelEditorApp:
 
             dates = list(groups.keys())
             sheet_count = len(self.workbook.sheetnames)
+            new_sheets = 0
 
+            # If more dates than sheets, copy last sheet for extras
             if len(dates) > sheet_count:
-                messagebox.showwarning(
-                    "Peringatan",
-                    f"Ada {len(dates)} tanggal tapi hanya {sheet_count} sheet.\n"
-                    f"Hanya {sheet_count} tanggal pertama yang akan diproses.",
-                    parent=win
-                )
+                extra = len(dates) - sheet_count
+                last_ws = self.workbook.worksheets[-1]
+                for j in range(extra):
+                    new_ws = self.workbook.copy_worksheet(last_ws)
+                    new_ws.title = f"Sheet{sheet_count + j + 1}"
+                new_sheets = extra
 
-            count = min(len(dates), sheet_count)
-            for i in range(count):
-                date_key = dates[i]
+            for i, date_key in enumerate(dates):
                 day, month, year = date_key
                 sheet_name = f"{day} {BULAN_INDO[month]}"
 
@@ -446,11 +446,11 @@ class ExcelEditorApp:
             self._render_tabs()
             self._render_table()
 
-            messagebox.showinfo(
-                "Sukses",
-                f"Berhasil rename {count} sheet sesuai tanggal!",
-                parent=win
-            )
+            msg = f"Berhasil rename {len(dates)} sheet sesuai tanggal!"
+            if new_sheets > 0:
+                msg += f"\n({new_sheets} sheet baru dibuat dari copy sheet terakhir)"
+
+            messagebox.showinfo("Sukses", msg, parent=win)
             win.destroy()
 
         ttk.Button(btn_frame, text="Preview", command=preview).pack(side=tk.RIGHT, padx=4)
