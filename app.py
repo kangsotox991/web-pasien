@@ -36,8 +36,10 @@ class ExcelEditorApp:
 
         self.workbook = None
         self.filepath = None
+        self.original_filepath = None
         self.current_sheet_name = None
         self.modified = False
+        self.patient_data = None
 
         self._build_ui()
 
@@ -54,8 +56,10 @@ class ExcelEditorApp:
         menubar.add_cascade(label="File", menu=file_menu)
 
         tools_menu = tk.Menu(menubar, tearoff=0)
-        tools_menu.add_command(label="Import Data Pasien...", command=self.import_data_pasien)
-        tools_menu.add_command(label="Rename Sheet...", command=self.rename_current_sheet)
+        tools_menu.add_command(label="Load Data Pasien...", command=self.load_data_pasien)
+        tools_menu.add_command(label="Rename Sheets dari Data", command=self.rename_sheets_from_data)
+        tools_menu.add_separator()
+        tools_menu.add_command(label="Rename Sheet Manual...", command=self.rename_current_sheet)
         menubar.add_cascade(label="Tools", menu=tools_menu)
 
         self.root.config(menu=menubar)
@@ -72,8 +76,8 @@ class ExcelEditorApp:
         ttk.Button(toolbar, text="Simpan", command=self.save_file).pack(side=tk.LEFT, padx=2)
         ttk.Button(toolbar, text="Simpan Sebagai", command=self.save_as).pack(side=tk.LEFT, padx=2)
         ttk.Separator(toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=8)
-        ttk.Button(toolbar, text="Import Data Pasien", command=self.import_data_pasien).pack(side=tk.LEFT, padx=2)
-        ttk.Button(toolbar, text="Rename Sheet", command=self.rename_current_sheet).pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="Load Data Pasien", command=self.load_data_pasien).pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="Rename Sheets", command=self.rename_sheets_from_data).pack(side=tk.LEFT, padx=2)
 
         self.file_label = ttk.Label(toolbar, text="Belum ada file dibuka", foreground="gray")
         self.file_label.pack(side=tk.RIGHT, padx=8)
@@ -138,7 +142,9 @@ class ExcelEditorApp:
         try:
             self.workbook = load_workbook(path)
             self.filepath = path
+            self.original_filepath = path
             self.modified = False
+            self.patient_data = None
             self.file_label.config(text=path.split("/")[-1].split("\\")[-1], foreground="black")
             self._render_tabs()
             self._switch_sheet(self.workbook.sheetnames[0])
@@ -150,11 +156,23 @@ class ExcelEditorApp:
         if not self.workbook or not self.filepath:
             self.save_as()
             return
+        # Never overwrite original file — auto-generate new filename
+        if self.filepath == self.original_filepath:
+            import os
+            base, ext = os.path.splitext(self.original_filepath)
+            new_path = f"{base}_edited{ext}"
+            # If _edited already exists, add number
+            counter = 1
+            while os.path.exists(new_path):
+                new_path = f"{base}_edited_{counter}{ext}"
+                counter += 1
+            self.filepath = new_path
         try:
             self.workbook.save(self.filepath)
             self.modified = False
+            self.file_label.config(text=self.filepath.split("/")[-1].split("\\")[-1], foreground="black")
             self.status_label.config(text="Tersimpan", foreground="green")
-            self.statusbar.config(text=f"File disimpan: {self.filepath}")
+            self.statusbar.config(text=f"File disimpan: {self.filepath} (file asli tidak diubah)")
         except Exception as e:
             messagebox.showerror("Error", f"Gagal menyimpan:\n{e}")
 
@@ -323,24 +341,21 @@ class ExcelEditorApp:
         self._render_tabs()
         self.statusbar.config(text=f"Sheet renamed → {new_name}")
 
-    # ------------------------------------------------------------------ IMPORT DATA PASIEN
-    def import_data_pasien(self):
-        if not self.workbook:
-            messagebox.showwarning("Peringatan", "Buka file Excel template terlebih dahulu")
-            return
-
+    # ------------------------------------------------------------------ LOAD DATA PASIEN
+    def load_data_pasien(self):
+        """Load patient data from .txt file or paste — only loads into memory, does NOT rename."""
         win = tk.Toplevel(self.root)
-        win.title("Import Data Pasien")
+        win.title("Load Data Pasien")
         win.geometry("750x650")
         win.transient(self.root)
         win.grab_set()
 
-        ttk.Label(win, text="Import Data Pasien", font=("Segoe UI", 14, "bold")).pack(pady=(12, 4))
+        ttk.Label(win, text="Load Data Pasien", font=("Segoe UI", 14, "bold")).pack(pady=(12, 4))
         ttk.Label(win, text=(
             "Paste data pasien di bawah, atau load dari file .txt.\n"
             "Format per baris: DD/MM/YYYY Nama No. Reg XXXXXXX dx: diagnosa\n\n"
-            "Data akan dikelompokkan per tanggal → 1 tanggal = 1 sheet.\n"
-            "Sheet di-rename otomatis (misal: '1 Maret', '4 Maret', dst)."
+            "Data akan disimpan di memori. Untuk rename sheet,\n"
+            "gunakan tombol 'Rename Sheets' di toolbar atau menu Tools."
         ), justify=tk.LEFT, foreground="gray").pack(padx=16, anchor="w")
 
         # Load from file button
@@ -385,6 +400,10 @@ class ExcelEditorApp:
         text_frame.rowconfigure(0, weight=1)
         text_frame.columnconfigure(0, weight=1)
 
+        # Pre-fill if data already loaded
+        if self.patient_data:
+            text.insert("1.0", self.patient_data)
+
         btn_frame = ttk.Frame(win)
         btn_frame.pack(fill=tk.X, padx=16, pady=(0, 12))
 
@@ -402,12 +421,13 @@ class ExcelEditorApp:
                 return
             dates = list(groups.keys())
             total = sum(len(v) for v in groups.values())
+            sheet_info = f" Sheet tersedia: {len(self.workbook.sheetnames)}" if self.workbook else ""
             result_label.config(
-                text=f"Ditemukan {len(dates)} tanggal, {total} pasien. Sheet tersedia: {len(self.workbook.sheetnames)}",
+                text=f"Ditemukan {len(dates)} tanggal, {total} pasien.{sheet_info}",
                 foreground="blue"
             )
 
-        def do_import():
+        def do_load():
             raw = text.get("1.0", tk.END).strip()
             if not raw:
                 messagebox.showwarning("Peringatan", "Tidak ada data", parent=win)
@@ -417,45 +437,93 @@ class ExcelEditorApp:
                 messagebox.showerror("Error", "Format data tidak dikenali", parent=win)
                 return
 
+            self.patient_data = raw
             dates = list(groups.keys())
-            sheet_count = len(self.workbook.sheetnames)
-            new_sheets = 0
+            total = sum(len(v) for v in groups.values())
 
-            # If more dates than sheets, copy last sheet for extras
-            if len(dates) > sheet_count:
-                extra = len(dates) - sheet_count
-                last_ws = self.workbook.worksheets[-1]
-                for j in range(extra):
-                    new_ws = self.workbook.copy_worksheet(last_ws)
-                    new_ws.title = f"Sheet{sheet_count + j + 1}"
-                new_sheets = extra
+            self.statusbar.config(text=f"Data pasien dimuat: {len(dates)} tanggal, {total} pasien")
+            self.status_label.config(text="Data dimuat", foreground="blue")
 
-            for i, date_key in enumerate(dates):
-                day, month, year = date_key
-                sheet_name = f"{day} {BULAN_INDO[month]}"
-
-                # Sanitize sheet name
-                sheet_name = re.sub(r'[\\/*?\[\]:]', '', sheet_name)[:31]
-
-                ws = self.workbook.worksheets[i]
-                ws.title = sheet_name
-
-            self.modified = True
-            self.status_label.config(text="Belum disimpan", foreground="orange")
-            self.current_sheet_name = self.workbook.sheetnames[0]
-            self._render_tabs()
-            self._render_table()
-
-            msg = f"Berhasil rename {len(dates)} sheet sesuai tanggal!"
-            if new_sheets > 0:
-                msg += f"\n({new_sheets} sheet baru dibuat dari copy sheet terakhir)"
-
-            messagebox.showinfo("Sukses", msg, parent=win)
+            messagebox.showinfo(
+                "Sukses",
+                f"Data pasien berhasil dimuat!\n"
+                f"{len(dates)} tanggal, {total} pasien.\n\n"
+                f"Untuk rename sheet, klik tombol 'Rename Sheets' di toolbar.",
+                parent=win
+            )
             win.destroy()
 
         ttk.Button(btn_frame, text="Preview", command=preview).pack(side=tk.RIGHT, padx=4)
-        ttk.Button(btn_frame, text="Import & Rename", command=do_import).pack(side=tk.RIGHT, padx=4)
+        ttk.Button(btn_frame, text="Simpan Data", command=do_load).pack(side=tk.RIGHT, padx=4)
         ttk.Button(btn_frame, text="Batal", command=win.destroy).pack(side=tk.RIGHT, padx=4)
+
+    # ------------------------------------------------------------------ RENAME SHEETS FROM DATA
+    def rename_sheets_from_data(self):
+        """Rename sheets based on loaded patient data — triggered via menu/toolbar."""
+        if not self.workbook:
+            messagebox.showwarning("Peringatan", "Buka file Excel terlebih dahulu")
+            return
+        if not self.patient_data:
+            messagebox.showwarning(
+                "Peringatan",
+                "Belum ada data pasien yang dimuat.\n"
+                "Klik 'Load Data Pasien' terlebih dahulu."
+            )
+            return
+
+        groups = self._parse_patient_data(self.patient_data)
+        if not groups:
+            messagebox.showerror("Error", "Format data pasien tidak dikenali")
+            return
+
+        dates = list(groups.keys())
+        total = sum(len(v) for v in groups.values())
+        sheet_count = len(self.workbook.sheetnames)
+
+        # Confirm before renaming
+        msg = (
+            f"Data: {len(dates)} tanggal, {total} pasien\n"
+            f"Sheet tersedia: {sheet_count}\n"
+        )
+        if len(dates) > sheet_count:
+            msg += f"\n{len(dates) - sheet_count} sheet baru akan dibuat dari copy sheet terakhir.\n"
+        msg += "\nLanjutkan rename sheet?"
+
+        if not messagebox.askyesno("Konfirmasi Rename", msg):
+            return
+
+        new_sheets = 0
+
+        # If more dates than sheets, copy last sheet for extras
+        if len(dates) > sheet_count:
+            extra = len(dates) - sheet_count
+            last_ws = self.workbook.worksheets[-1]
+            for j in range(extra):
+                new_ws = self.workbook.copy_worksheet(last_ws)
+                new_ws.title = f"Sheet{sheet_count + j + 1}"
+            new_sheets = extra
+
+        for i, date_key in enumerate(dates):
+            day, month, year = date_key
+            sheet_name = f"{day} {BULAN_INDO[month]}"
+
+            # Sanitize sheet name
+            sheet_name = re.sub(r'[\\/*?\[\]:]', '', sheet_name)[:31]
+
+            ws = self.workbook.worksheets[i]
+            ws.title = sheet_name
+
+        self.modified = True
+        self.status_label.config(text="Belum disimpan", foreground="orange")
+        self.current_sheet_name = self.workbook.sheetnames[0]
+        self._render_tabs()
+        self._render_table()
+
+        msg = f"Berhasil rename {len(dates)} sheet sesuai tanggal!"
+        if new_sheets > 0:
+            msg += f"\n({new_sheets} sheet baru dibuat dari copy sheet terakhir)"
+
+        messagebox.showinfo("Sukses", msg)
 
     def _parse_patient_data(self, raw_text):
         """Parse patient data text and group by date.
