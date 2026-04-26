@@ -9,16 +9,21 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 import re
 from collections import OrderedDict
-from copy import copy
+from copy import copy, deepcopy
+import io
 
 try:
     from openpyxl import load_workbook
     from openpyxl.utils import get_column_letter
+    from openpyxl.drawing.image import Image as XlImage
+    from openpyxl.drawing.spreadsheet_drawing import TwoCellAnchor, OneCellAnchor, AnchorMarker
 except ImportError:
     import subprocess, sys
     subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl"])
     from openpyxl import load_workbook
     from openpyxl.utils import get_column_letter
+    from openpyxl.drawing.image import Image as XlImage
+    from openpyxl.drawing.spreadsheet_drawing import TwoCellAnchor, OneCellAnchor, AnchorMarker
 
 BULAN_INDO = {
     1: "Januari", 2: "Februari", 3: "Maret", 4: "April",
@@ -494,13 +499,15 @@ class ExcelEditorApp:
 
         new_sheets = 0
 
-        # If more dates than sheets, copy last sheet for extras
+        # If more dates than sheets, copy last sheet for extras (including images)
         if len(dates) > sheet_count:
             extra = len(dates) - sheet_count
             last_ws = self.workbook.worksheets[-1]
             for j in range(extra):
                 new_ws = self.workbook.copy_worksheet(last_ws)
                 new_ws.title = f"Sheet{sheet_count + j + 1}"
+                # Copy images from source sheet (copy_worksheet doesn't copy images)
+                self._copy_images(last_ws, new_ws)
             new_sheets = extra
 
         for i, date_key in enumerate(dates):
@@ -550,6 +557,48 @@ class ExcelEditorApp:
                 groups[key].append(rest)
 
         return groups
+
+    def _copy_images(self, source_ws, target_ws):
+        """Copy all images from source worksheet to target worksheet."""
+        for img in source_ws._images:
+            # Read original image data
+            img.ref.seek(0)
+            img_data = img.ref.read()
+            img.ref.seek(0)
+
+            # Create new image from copied data
+            new_img = XlImage(io.BytesIO(img_data))
+            new_img.width = img.width
+            new_img.height = img.height
+
+            # Copy anchor positioning
+            anchor = img.anchor
+            if isinstance(anchor, TwoCellAnchor):
+                new_anchor = TwoCellAnchor()
+                new_anchor._from = AnchorMarker(
+                    col=anchor._from.col,
+                    colOff=anchor._from.colOff,
+                    row=anchor._from.row,
+                    rowOff=anchor._from.rowOff
+                )
+                new_anchor.to = AnchorMarker(
+                    col=anchor.to.col,
+                    colOff=anchor.to.colOff,
+                    row=anchor.to.row,
+                    rowOff=anchor.to.rowOff
+                )
+                new_img.anchor = new_anchor
+            elif isinstance(anchor, OneCellAnchor):
+                new_anchor = OneCellAnchor()
+                new_anchor._from = AnchorMarker(
+                    col=anchor._from.col,
+                    colOff=anchor._from.colOff,
+                    row=anchor._from.row,
+                    rowOff=anchor._from.rowOff
+                )
+                new_img.anchor = new_anchor
+
+            target_ws.add_image(new_img)
 
 
 def main():
