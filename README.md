@@ -1,70 +1,54 @@
-# Excel Web Editor
+# Excel Logbook Editor
 
-Web application untuk membaca, mengedit, dan menyimpan file Excel langsung dari browser.
+Aplikasi desktop Python untuk membaca, mengedit, dan menyimpan file Excel (Logbook Harian).
 
 ## Fitur
 
-- **Upload Excel** - Drag & drop atau pilih file (.xlsx, .xls, .csv)
-- **Tampilan Web** - Data Excel ditampilkan dalam tabel web yang bersih
-- **Edit Inline** - Double-click cell untuk mengedit, perubahan langsung tersimpan ke file Excel
-- **Multi-Sheet** - Support multiple sheet dengan tab navigation
-- **Tambah/Hapus** - Tambah baris, tambah kolom, hapus baris
-- **Download** - Download file Excel yang sudah diedit
-- **Auto-save** - Setiap perubahan otomatis tersimpan ke file Excel
+- **Buka File Excel** — Load file .xlsx via dialog
+- **Tampilan Tabel** — Data Excel ditampilkan dalam tabel dengan navigasi sheet tabs
+- **Edit Cell** — Double-click cell untuk edit, perubahan disimpan ke workbook
+- **Import Data Pasien** — Paste data pasien, otomatis rename sheet per tanggal (misal: "1 Maret", "4 Maret", dst)
+- **Rename Sheet** — Rename sheet secara manual
+- **Simpan / Simpan Sebagai** — Simpan perubahan ke file Excel
 
-## Tech Stack
+## Cara Pakai
 
-- **Backend**: PHP + [PhpSpreadsheet](https://github.com/PHPOffice/PhpSpreadsheet)
-- **Frontend**: HTML + CSS + Vanilla JavaScript
-- **Hosting**: Compatible dengan InfinityFree dan shared hosting PHP lainnya
-
-## Instalasi
-
-### Shared Hosting (InfinityFree)
-
-1. Upload semua file ke root hosting (public_html)
-2. Pastikan folder `uploads/` writable (chmod 755)
-3. Pastikan folder `vendor/` ter-upload lengkap
-4. Akses melalui domain
-
-### Local Development
+### Install
 
 ```bash
-# Install dependencies
-composer install
-
-# Jalankan PHP built-in server
-php -S localhost:8000
-
-# Buka browser di http://localhost:8000
+pip install openpyxl
 ```
 
-## Struktur File
+### Jalankan
 
-```
-web-pasien/
-├── index.php           # Halaman utama
-├── composer.json       # PHP dependencies
-├── .htaccess          # Apache config
-├── api/
-│   ├── upload.php     # API upload file
-│   ├── read.php       # API baca sheet
-│   ├── save.php       # API simpan cell
-│   ├── download.php   # API download file
-│   ├── add_row.php    # API tambah baris
-│   ├── add_col.php    # API tambah kolom
-│   └── delete_row.php # API hapus baris
-├── assets/
-│   ├── css/style.css  # Stylesheet
-│   └── js/app.js      # JavaScript
-├── uploads/           # Folder file Excel (auto-created)
-└── vendor/            # PHP dependencies (auto-generated)
+```bash
+python app.py
 ```
 
-## Keyboard Shortcuts
+### Import Data Pasien
 
-- **Double-click** - Edit cell
-- **Enter** - Simpan dan keluar dari edit
-- **Escape** - Batal edit
-- **Tab** - Pindah ke cell berikutnya
-- **Shift+Tab** - Pindah ke cell sebelumnya
+1. Buka file Excel template (Logbook Harian)
+2. Klik menu **Tools → Import Data Pasien**
+3. Paste data pasien dengan format:
+   ```
+   01/03/2026 Ny. K No. Reg 1026844 dx: infus, injeksi, ekg.
+   01/03/2026 Sdr. A No. Reg 1027099 dx: injeksi, observasi.
+   04/03/2026 Tn. S No. Reg 167396 dx: infus, injeksi, lab, ekg.
+   ```
+4. Klik **Import & Rename**
+5. Sheet otomatis di-rename: Sheet1 → "1 Maret", Sheet2 → "4 Maret", dst
+
+### Keyboard Shortcuts
+
+- **Ctrl+O** — Buka file
+- **Ctrl+S** — Simpan
+- **Ctrl+Shift+S** — Simpan Sebagai
+- **Double-click** — Edit cell
+- **Enter** — Simpan edit cell
+- **Escape** — Batal edit cell
+
+## Requirements
+
+- Python 3.8+
+- openpyxl
+- tkinter (sudah include di Python standar)
