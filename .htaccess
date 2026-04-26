@@ -1,0 +1,16 @@
+RewriteEngine On
+
+# Deny access to sensitive directories
+<FilesMatch "\.(json|lock|md)$">
+    Order deny,allow
+    Deny from all
+</FilesMatch>
+
+# Deny access to uploads directory listing
+Options -Indexes
+
+# PHP settings for file uploads
+php_value upload_max_filesize 10M
+php_value post_max_size 12M
+php_value max_execution_time 120
+php_value memory_limit 256M
